@@ -169,9 +169,6 @@ async def google_callback(
         if not name:
             name = email.split("@")[0]
 
-        # -------------------------------------------------
-        # 1. Find existing Google account
-        # -------------------------------------------------
         user = (
             db.query(User)
             .filter(User.google_id == google_id)
