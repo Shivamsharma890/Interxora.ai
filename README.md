@@ -1,4 +1,4 @@
-# 🚀 Interxora.ai
+# Interxora.ai
 
 <p align="center">
   <strong>AI-Powered Interview Practice & Performance Platform</strong>
@@ -21,38 +21,88 @@
 
 </p>
 
+### AI-Powered Interview Practice & Performance Platform
+
+Interxora.ai is a full-stack AI interview platform that simulates realistic technical and behavioral interviews, personalizes questions using a candidate's resume and target job description, evaluates answers using LLMs, and generates a detailed interview performance report.
+
+It combines modern full-stack development with Generative AI, Retrieval-Augmented Generation (RAG), vector search, authentication, real-time interview interaction, and persistent performance tracking.
+
 ---
 
-## 🧠 About The Project
+## 🚀 What is Interxora.ai?
 
-**Interxora.ai** is a full-stack AI-powered interview platform designed to simulate a personalized interview experience rather than simply displaying a predefined list of questions.
+Interxora.ai is designed to provide a personalized AI-powered interview experience instead of relying on a fixed set of generic questions.
 
-The platform combines:
+A candidate can:
 
-- Full-stack web development
-- Secure authentication
+- Create an account or sign in with Google
+- Upload/provide their resume
+- Provide a target job description
+- Start a personalized AI interview
+- Answer questions through an interactive interview interface
+- Use speech input
+- Practice with a timed interview session
+- Receive AI-powered answer evaluation
+- Get a final performance report
+- Review previous interviews and performance from the dashboard
+
+---
+
+# ✨ Core Features
+
+## 🔐 Authentication & Security
+
+- JWT-based authentication
 - Google OAuth
-- LLM-powered interview generation
-- Retrieval-Augmented Generation (RAG)
-- Semantic vector search
-- Resume and Job Description personalization
-- AI-powered answer evaluation
-- Interactive interview sessions
-- Speech input
-- Camera/face detection
-- Timed interview handling
-- Persistent interview history
-- AI-generated performance reports
-
-The central idea behind Interxora.ai is simple:
-
-> **An interview should adapt to the candidate, the target role, and the candidate's previous responses.**
+- User registration and login
+- Logout and re-login
+- Forgot password
+- Password reset through email
+- Gmail SMTP integration
+- Password validation
+- Refresh-token handling
+- Enumeration-safe forgot-password response
+- Environment-based secret management
 
 ---
 
-# ✨ Why Interxora.ai?
+## 🧠 AI Interview Generation
 
-A basic AI project might look like:
+The interview engine dynamically generates interview questions using an LLM.
+
+Questions can be personalized according to:
+
+- Candidate resume
+- Target job description
+- Interview type
+- Difficulty
+- Interview context
+
+Instead of using only predefined questions, Interxora.ai generates questions dynamically according to the candidate's profile and target role.
+
+---
+
+# 🎯 Resume + Job Description Personalization
+
+One of the main features of Interxora.ai is personalized interview generation.
+
+The system combines:
 
 ```text
-User → API → LLM → Response
+Candidate Resume
+        +
+Job Description
+        ↓
+Document Processing
+        ↓
+Embeddings
+        ↓
+PostgreSQL + pgvector
+        ↓
+Semantic Retrieval
+        ↓
+Relevant Context
+        ↓
+LLM
+        ↓
+Personalized Interview
