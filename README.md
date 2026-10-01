@@ -1,5 +1,3 @@
-# Interxora.ai
-
 <p align="center">
   <strong>AI-Powered Interview Practice & Performance Platform</strong>
 </p>
