@@ -21,6 +21,8 @@
 
 </p>
 
+---
+
 ### AI-Powered Interview Practice & Performance Platform
 
 Interxora.ai is a full-stack AI interview platform that simulates realistic technical and behavioral interviews, personalizes questions using a candidate's resume and target job description, evaluates answers using LLMs, and generates a detailed interview performance report.
