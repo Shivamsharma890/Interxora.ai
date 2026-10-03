@@ -1,11 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from jose import jwt
-from config import (
-    SECRET_KEY,
-    ALGORITHM,
-    ACCESS_TOKEN_EXPIRE_MINUTES,
-)
+from config import (SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES)
 
 def create_access_token(data: dict):
     to_encode = data.copy()
