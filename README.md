@@ -66,22 +66,6 @@ A candidate can:
 
 ---
 
-## 🧠 AI Interview Generation
-
-The interview engine dynamically generates interview questions using an LLM.
-
-Questions can be personalized according to:
-
-- Candidate resume
-- Target job description
-- Interview type
-- Difficulty
-- Interview context
-
-Instead of using only predefined questions, Interxora.ai generates questions dynamically according to the candidate's profile and target role.
-
----
-
 # 🎯 Resume + Job Description Personalization
 
 One of the main features of Interxora.ai is personalized interview generation.
@@ -106,3 +90,98 @@ Relevant Context
 LLM
         ↓
 Personalized Interview
+```
+
+## 🚀 Run Locally
+
+### 1. Backend Setup
+
+Navigate to the backend:
+
+```bash
+cd backend
+```
+
+Create and activate a virtual environment:
+
+```bash
+python -m venv venv
+```
+
+Windows:
+
+```bash
+venv\Scripts\activate
+```
+
+Install the dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Create a `.env` file inside the `backend` folder and add your required environment variables.
+
+Start the FastAPI backend:
+
+```bash
+python -m uvicorn main:app --reload --port 'port_number'
+```
+
+The backend will run at:
+
+```text
+http://localhost:8000
+```
+
+### 3. Frontend Setup
+
+Open a new terminal and navigate to the frontend:
+
+```bash
+cd frontend
+```
+
+Install the dependencies:
+
+```bash
+npm install
+```
+
+Create a `.env` file inside the `frontend` folder:
+
+```env
+VITE_API_URL=http://localhost:8000
+```
+
+Start the frontend:
+
+```bash
+npm run dev
+```
+
+The frontend will be available at the URL shown in the terminal, usually:
+
+```text
+http://localhost:5173
+```
+
+### 4. Run the Project
+
+Run both servers simultaneously:
+
+**Backend:**
+
+```bash
+cd backend
+uvicorn main:app --reload
+```
+
+**Frontend:**
+
+```bash
+cd frontend
+npm run dev
+```
+
+Then open the frontend URL in your browser.
