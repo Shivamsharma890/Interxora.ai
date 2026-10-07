@@ -12,12 +12,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field
 from models.interview_question import InterviewQuestion
 from models.interview_answer import InterviewAnswer
-from AI.interview_engine import (
-    evaluate_answer,
-    generate_first_question,
-    generate_next_question,
-    generate_final_feedback,
-)
+from AI.interview_engine import (evaluate_answer, generate_first_question, generate_next_question, generate_final_feedback)
 
 router = APIRouter(prefix="/interviews", tags=["Interviews"])
 
@@ -36,6 +31,23 @@ class AnswerSubmitPayload(BaseModel):
     answer_text: str
     response_mode: Literal["practice", "live"] = "practice"
     speech_metrics: Optional[SpeechMetrics] = None
+
+
+
+class FaceObservationPayload(BaseModel):
+    response_mode: Literal["live"] = "live"
+    observed_seconds: float = Field(default=0, ge=0)
+    face_present_seconds: float = Field(default=0, ge=0)
+    face_presence_ratio: float = Field(default=0, ge=0, le=100)
+    no_face_events: int = Field(default=0, ge=0)
+    no_face_duration_seconds: float = Field(default=0, ge=0)
+    multiple_face_events: int = Field(default=0, ge=0)
+    multiple_face_duration_seconds: float = Field(default=0, ge=0)
+    off_center_events: int = Field(default=0, ge=0)
+    off_center_duration_seconds: float = Field(default=0, ge=0)
+    looking_away_events: int = Field(default=0, ge=0)
+    looking_away_duration_seconds: float = Field(default=0, ge=0)
+    samples: int = Field(default=0, ge=0)
 
 
 def save_speech_metrics(db: Session, answer_id: int, payload: AnswerSubmitPayload) -> None:
@@ -143,6 +155,155 @@ def get_speech_metrics_map(db: Session, answer_ids: list[int]) -> dict[int, dict
     }
 
 
+def ensure_face_observation_table(db: Session) -> None:
+    """Create the live face-observation table when the endpoint is first used."""
+    db.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS interview_face_observations (
+                interview_id INTEGER PRIMARY KEY REFERENCES interviews(id) ON DELETE CASCADE,
+                response_mode VARCHAR(20) NOT NULL DEFAULT 'live',
+                observed_seconds DOUBLE PRECISION NOT NULL DEFAULT 0,
+                face_present_seconds DOUBLE PRECISION NOT NULL DEFAULT 0,
+                face_presence_ratio DOUBLE PRECISION NOT NULL DEFAULT 0,
+                no_face_events INTEGER NOT NULL DEFAULT 0,
+                no_face_duration_seconds DOUBLE PRECISION NOT NULL DEFAULT 0,
+                multiple_face_events INTEGER NOT NULL DEFAULT 0,
+                multiple_face_duration_seconds DOUBLE PRECISION NOT NULL DEFAULT 0,
+                off_center_events INTEGER NOT NULL DEFAULT 0,
+                off_center_duration_seconds DOUBLE PRECISION NOT NULL DEFAULT 0,
+                looking_away_events INTEGER NOT NULL DEFAULT 0,
+                looking_away_duration_seconds DOUBLE PRECISION NOT NULL DEFAULT 0,
+                samples INTEGER NOT NULL DEFAULT 0,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+    )
+
+
+def save_face_observations(db: Session, interview_id: int, payload: FaceObservationPayload) -> None:
+    ensure_face_observation_table(db)
+    db.execute(
+        text(
+            """
+            INSERT INTO interview_face_observations (
+                interview_id,
+                response_mode,
+                observed_seconds,
+                face_present_seconds,
+                face_presence_ratio,
+                no_face_events,
+                no_face_duration_seconds,
+                multiple_face_events,
+                multiple_face_duration_seconds,
+                off_center_events,
+                off_center_duration_seconds,
+                looking_away_events,
+                looking_away_duration_seconds,
+                samples,
+                updated_at
+            )
+            VALUES (
+                :interview_id,
+                :response_mode,
+                :observed_seconds,
+                :face_present_seconds,
+                :face_presence_ratio,
+                :no_face_events,
+                :no_face_duration_seconds,
+                :multiple_face_events,
+                :multiple_face_duration_seconds,
+                :off_center_events,
+                :off_center_duration_seconds,
+                :looking_away_events,
+                :looking_away_duration_seconds,
+                :samples,
+                NOW()
+            )
+            ON CONFLICT (interview_id) DO UPDATE SET
+                response_mode = EXCLUDED.response_mode,
+                observed_seconds = EXCLUDED.observed_seconds,
+                face_present_seconds = EXCLUDED.face_present_seconds,
+                face_presence_ratio = EXCLUDED.face_presence_ratio,
+                no_face_events = EXCLUDED.no_face_events,
+                no_face_duration_seconds = EXCLUDED.no_face_duration_seconds,
+                multiple_face_events = EXCLUDED.multiple_face_events,
+                multiple_face_duration_seconds = EXCLUDED.multiple_face_duration_seconds,
+                off_center_events = EXCLUDED.off_center_events,
+                off_center_duration_seconds = EXCLUDED.off_center_duration_seconds,
+                looking_away_events = EXCLUDED.looking_away_events,
+                looking_away_duration_seconds = EXCLUDED.looking_away_duration_seconds,
+                samples = EXCLUDED.samples,
+                updated_at = NOW()
+            """
+        ),
+        {
+            "interview_id": interview_id,
+            "response_mode": payload.response_mode,
+            "observed_seconds": payload.observed_seconds,
+            "face_present_seconds": payload.face_present_seconds,
+            "face_presence_ratio": payload.face_presence_ratio,
+            "no_face_events": payload.no_face_events,
+            "no_face_duration_seconds": payload.no_face_duration_seconds,
+            "multiple_face_events": payload.multiple_face_events,
+            "multiple_face_duration_seconds": payload.multiple_face_duration_seconds,
+            "off_center_events": payload.off_center_events,
+            "off_center_duration_seconds": payload.off_center_duration_seconds,
+            "looking_away_events": payload.looking_away_events,
+            "looking_away_duration_seconds": payload.looking_away_duration_seconds,
+            "samples": payload.samples,
+        },
+    )
+
+
+def get_face_observations(db: Session, interview_id: int) -> dict | None:
+    ensure_face_observation_table(db)
+    row = db.execute(
+        text(
+            """
+            SELECT
+                response_mode,
+                observed_seconds,
+                face_present_seconds,
+                face_presence_ratio,
+                no_face_events,
+                no_face_duration_seconds,
+                multiple_face_events,
+                multiple_face_duration_seconds,
+                off_center_events,
+                off_center_duration_seconds,
+                looking_away_events,
+                looking_away_duration_seconds,
+                samples,
+                updated_at
+            FROM interview_face_observations
+            WHERE interview_id = :interview_id
+            """
+        ),
+        {"interview_id": interview_id},
+    ).mappings().first()
+
+    if not row:
+        return None
+
+    return {
+        "response_mode": row["response_mode"],
+        "observed_seconds": float(row["observed_seconds"] or 0),
+        "face_present_seconds": float(row["face_present_seconds"] or 0),
+        "face_presence_ratio": float(row["face_presence_ratio"] or 0),
+        "no_face_events": int(row["no_face_events"] or 0),
+        "no_face_duration_seconds": float(row["no_face_duration_seconds"] or 0),
+        "multiple_face_events": int(row["multiple_face_events"] or 0),
+        "multiple_face_duration_seconds": float(row["multiple_face_duration_seconds"] or 0),
+        "off_center_events": int(row["off_center_events"] or 0),
+        "off_center_duration_seconds": float(row["off_center_duration_seconds"] or 0),
+        "looking_away_events": int(row["looking_away_events"] or 0),
+        "looking_away_duration_seconds": float(row["looking_away_duration_seconds"] or 0),
+        "samples": int(row["samples"] or 0),
+    }
+
+
 @router.post("/", response_model=InterviewResponse, status_code=status.HTTP_201_CREATED)
 def create_interview(
     interview: InterviewCreate,
@@ -197,6 +358,45 @@ def get_interview(
     return interview
 
 
+@router.patch("/{interview_id}/face-observations")
+def update_face_observations(
+    interview_id: int,
+    payload: FaceObservationPayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Persist aggregated browser-side face observations for a live interview."""
+    interview = (
+        db.query(Interview)
+        .filter(
+            Interview.id == interview_id,
+            Interview.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if not interview:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Interview not found",
+        )
+
+    if interview.status not in {"started", "completed"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Face observations can only be saved for an active or completed interview",
+        )
+
+    save_face_observations(db, interview_id, payload)
+    db.commit()
+
+    return {
+        "message": "Face observations saved",
+        "interview_id": interview_id,
+        "face_observations": get_face_observations(db, interview_id),
+    }
+
+
 @router.patch("/{interview_id}/start", response_model=InterviewResponse)
 def start_interview(
     interview_id: int,
@@ -205,13 +405,17 @@ def start_interview(
 ):
     interview = (
         db.query(Interview)
-        .filter(Interview.id == interview_id, Interview.user_id == current_user.id)
+        .filter(
+            Interview.id == interview_id,
+            Interview.user_id == current_user.id,
+        )
         .first()
     )
 
     if not interview:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Interview not found"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Interview not found",
         )
 
     if interview.status == "completed":
@@ -219,30 +423,56 @@ def start_interview(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Completed interview cannot be started again",
         )
+
     if interview.status == "started":
         return interview
 
     interview.status = "started"
     interview.started_at = datetime.now(timezone.utc)
+                                                          
+    try:
+        db.flush()
 
-    # Generate first AI question
-    question_text = generate_first_question(
-        role=interview.role,
-        interview_type=interview.interview_type,
-        difficulty=interview.difficulty,
-    )
+        question_text = generate_first_question(
+            role=interview.role,
+            interview_type=interview.interview_type,
+            difficulty=interview.difficulty,
+            user_id=current_user.id,
+            db=db,
+            interview_id=interview.id,
+        )
 
-    # Save question in database
-    first_question = InterviewQuestion(
-        interview_id=interview.id, question_number=1, question_text=question_text
-    )
+        if not question_text or not question_text.strip():
+            raise ValueError(
+                "AI returned an empty first interview question"
+            )
 
-    db.add(first_question)
+        first_question = InterviewQuestion(
+            interview_id=interview.id,
+            question_number=1,
+            question_text=question_text.strip(),
+        )
 
-    db.commit()
-    db.refresh(interview)
+        db.add(first_question)
+        db.commit()
+        db.refresh(interview)
 
-    return interview
+        return interview
+
+    except HTTPException:
+        db.rollback()
+        raise
+
+    except Exception as exc:
+        db.rollback()
+                                   
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "Unable to start the interview because the first "
+                f"question could not be generated: {str(exc)}"
+            ),
+        )
 
 
 @router.get("/{interview_id}/questions")
@@ -293,9 +523,7 @@ def submit_answer(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # ---------------------------------------------------------
-    # 1. Get interview and verify ownership
-    # ---------------------------------------------------------
+                                                                                                                       
     interview = (
         db.query(Interview)
         .filter(
@@ -310,19 +538,13 @@ def submit_answer(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Interview not found",
         )
-
-    # ---------------------------------------------------------
-    # 2. Interview must be active
-    # ---------------------------------------------------------
+                                                         
     if interview.status != "started":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Interview is not currently active",
         )
-
-    # ---------------------------------------------------------
-    # 3. Get the question
-    # ---------------------------------------------------------
+                                                         
     question = (
         db.query(InterviewQuestion)
         .filter(
@@ -337,14 +559,7 @@ def submit_answer(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Question not found for this interview",
         )
-
-    # ---------------------------------------------------------
-    # 4. IDEMPOTENT RECOVERY
-    # ---------------------------------------------------------
-    # If a previous request successfully saved the answer but
-    # failed while generating the next question, do not reject
-    # the retry with "already answered". Recover the interview
-    # from the persisted answer instead.
+                                  
     existing_answer = (
         db.query(InterviewAnswer)
         .filter(
@@ -353,12 +568,7 @@ def submit_answer(
         .first()
     )
 
-    if existing_answer:
-        # -----------------------------------------------------
-        # Existing answer belongs to the final question.
-        # Retry final-feedback generation if the previous
-        # request failed after saving the answer.
-        # -----------------------------------------------------
+    if existing_answer:                                                      
         if question.question_number >= interview.max_questions:
             if interview.status == "completed":
                 return {
@@ -432,7 +642,7 @@ Individual Feedback:
 --------------------------------
 """
 
-            # Calculate the official score from the stored answer scores.
+                                                                         
             total_score = sum(float(a.score or 0) for a in all_answers)
             maximum_score = len(all_answers) * 10
             overall_score = (
@@ -449,6 +659,9 @@ Individual Feedback:
                     difficulty=interview.difficulty,
                     questions_and_answers=questions_and_answers,
                     overall_score=overall_score,
+                    user_id=current_user.id,
+                    db=db,
+                    interview_id=interview.id,
                 )
             except Exception as e:
                 db.rollback()
@@ -470,11 +683,7 @@ Individual Feedback:
                 "completed": True,
                 "final_feedback": interview.final_feedback,
             }
-
-        # -----------------------------------------------------
-        # Existing non-final answer: return an already-created
-        # next question if it exists.
-        # -----------------------------------------------------
+                                                     
         next_question_number = question.question_number + 1
 
         existing_next_question = (
@@ -495,11 +704,7 @@ Individual Feedback:
                 "max_questions": interview.max_questions,
                 "completed": False,
             }
-
-        # -----------------------------------------------------
-        # Previous request saved the answer but failed before
-        # saving the next question. Generate the missing question.
-        # -----------------------------------------------------
+                                                     
         try:
             next_question_text = generate_next_question(
                 role=interview.role,
@@ -507,6 +712,9 @@ Individual Feedback:
                 difficulty=interview.difficulty,
                 previous_question=question.question_text,
                 candidate_answer=existing_answer.answer_text,
+                user_id=current_user.id,
+                db=db,
+                interview_id=interview.id,
             )
         except Exception as e:
             raise HTTPException(
@@ -532,10 +740,7 @@ Individual Feedback:
             "max_questions": interview.max_questions,
             "completed": False,
         }
-
-    # ---------------------------------------------------------
-    # 5. Evaluate answer using AI
-    # ---------------------------------------------------------
+                                                       
     try:
         evaluation = evaluate_answer(
             question=question.question_text,
@@ -546,10 +751,7 @@ Individual Feedback:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"AI evaluation temporarily unavailable: {str(e)}",
         )
-
-    # ---------------------------------------------------------
-    # 6. Validate AI evaluation
-    # ---------------------------------------------------------
+                                                       
     if not isinstance(evaluation, dict):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -571,20 +773,14 @@ Individual Feedback:
         score = 0
 
     score = max(0, min(score, 10))
-
-    # ---------------------------------------------------------
-    # 7. Prepare answer without committing yet.
-    # ---------------------------------------------------------
+                                                    
     new_answer = InterviewAnswer(
         interview_question_id=question.id,
         answer_text=answer.answer_text,
         ai_feedback=ai_feedback,
         score=score,
     )
-
-    # ---------------------------------------------------------
-    # 8. Final question
-    # ---------------------------------------------------------
+                                                         
     if question.question_number >= interview.max_questions:
         db.add(new_answer)
         db.flush()
@@ -653,7 +849,7 @@ Individual Feedback:
 --------------------------------
 """
 
-        # Calculate the official score from the stored answer scores.
+                                                                     
         total_score = sum(float(a.score or 0) for a in all_answers)
         maximum_score = len(all_answers) * 10
         overall_score = (
@@ -670,6 +866,9 @@ Individual Feedback:
                 difficulty=interview.difficulty,
                 questions_and_answers=questions_and_answers,
                 overall_score=overall_score,
+                user_id=current_user.id,
+                db=db,
+                interview_id=interview.id,
             )
         except Exception as e:
             db.rollback()
@@ -693,13 +892,7 @@ Individual Feedback:
             "completed": True,
             "final_feedback": interview.final_feedback,
         }
-
-    # ---------------------------------------------------------
-    # 9. Generate next question BEFORE committing the answer.
-    # ---------------------------------------------------------
-    # This prevents the exact bug shown in the screenshot:
-    # answer gets committed -> Gemini fails -> API returns 503 ->
-    # user retries -> API says question already answered.
+                                               
     next_question_number = question.question_number + 1
 
     try:
@@ -709,6 +902,9 @@ Individual Feedback:
             difficulty=interview.difficulty,
             previous_question=question.question_text,
             candidate_answer=answer.answer_text,
+            user_id=current_user.id,
+            db=db,
+            interview_id=interview.id,
         )
     except Exception as e:
         db.rollback()
@@ -755,15 +951,24 @@ def complete_interview(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Finalize an interview, including a timeout/partial interview.
+
+    The endpoint is intentionally idempotent for completed interviews so a
+    timeout request can safely be retried without creating duplicate state.
+    """
     interview = (
         db.query(Interview)
-        .filter(Interview.id == interview_id, Interview.user_id == current_user.id)
+        .filter(
+            Interview.id == interview_id,
+            Interview.user_id == current_user.id,
+        )
         .first()
     )
 
     if not interview:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Interview not found"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Interview not found",
         )
 
     if interview.status == "created":
@@ -771,28 +976,110 @@ def complete_interview(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Interview has not been started",
         )
+                                                 
+    if interview.status == "completed":
+        return interview
+                                                    
+    all_questions = (
+        db.query(InterviewQuestion)
+        .filter(InterviewQuestion.interview_id == interview_id)
+        .order_by(InterviewQuestion.question_number)
+        .all()
+    )
 
-    if interview.status == "started":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Interview is already started",
+    all_answers = (
+        db.query(InterviewAnswer)
+        .join(
+            InterviewQuestion,
+            InterviewAnswer.interview_question_id == InterviewQuestion.id,
+        )
+        .filter(InterviewQuestion.interview_id == interview_id)
+        .order_by(InterviewQuestion.question_number)
+        .all()
+    )
+
+    questions_and_answers = ""
+
+    for question in all_questions:
+        matching_answer = next(
+            (
+                answer
+                for answer in all_answers
+                if answer.interview_question_id == question.id
+            ),
+            None,
         )
 
-    if interview.status == "completed":
+        questions_and_answers += f"""
+Question {question.question_number}:
+{question.question_text}
+
+Candidate Answer:
+{
+    matching_answer.answer_text
+    if matching_answer
+    else "No answer provided — interview ended before this question was answered."
+}
+
+Score:
+{
+    matching_answer.score
+    if matching_answer
+    else 0
+}/10
+
+Individual Feedback:
+{
+    matching_answer.ai_feedback
+    if matching_answer
+    else "No answer was submitted for this question."
+}
+
+--------------------------------
+"""
+
+    total_score = sum(float(answer.score or 0) for answer in all_answers)
+    maximum_score = len(all_answers) * 10
+    overall_score = (
+        (total_score / maximum_score) * 100
+        if maximum_score > 0
+        else 0
+    )
+    overall_score = round(max(0, min(100, overall_score)), 2)
+
+    try:
+        final_feedback = generate_final_feedback(
+            role=interview.role,
+            interview_type=interview.interview_type,
+            difficulty=interview.difficulty,
+            questions_and_answers=questions_and_answers,
+            overall_score=overall_score,
+            user_id=current_user.id,
+            db=db,
+            interview_id=interview.id,
+        )
+    except Exception as e:
+        db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Completed interview cannot be started again",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Final feedback generation temporarily unavailable: {str(e)}",
         )
 
     interview.status = "completed"
     interview.completed_at = datetime.now(timezone.utc)
+    interview.final_feedback = final_feedback
 
-    db.commit()
-    db.refresh(interview)
+    try:
+        db.commit()
+        db.refresh(interview)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Unable to finalize interview: {str(e)}",
+        )
 
     return interview
-
-
 
 def analyze_delivery_metrics(metrics: dict) -> dict:
     """Compute transparent, heuristic delivery indicators from stored live speech metrics.
@@ -867,7 +1154,7 @@ def analyze_delivery_metrics(metrics: dict) -> dict:
         pause_label = "High pause proportion"
         pause_status = "high"
 
-    # Transparent heuristic index; never used for the official interview score.
+                                                                               
     delivery_score = 100.0
     if wpm <= 0:
         delivery_score -= 20
@@ -929,44 +1216,75 @@ def analyze_delivery_metrics(metrics: dict) -> dict:
     }
 
 def build_delivery_summary(live_metrics: list[dict]) -> dict:
-    """Aggregate live-response delivery signals for the final report."""
     if not live_metrics:
         return {"available": False, "response_count": 0, "message": "No live speech analytics were recorded."}
 
     analyses = [analyze_delivery_metrics(item) for item in live_metrics]
-    avg_score = sum(item["delivery_score"] for item in analyses) / len(analyses)
     total_words = sum(max(0, int(item.get("word_count", 0) or 0)) for item in live_metrics)
     total_fillers = sum(max(0, int(item.get("filler_word_count", 0) or 0)) for item in live_metrics)
     total_pause = sum(max(0.0, float(item.get("pause_duration_seconds", 0) or 0)) for item in live_metrics)
     total_response = sum(max(0.0, float(item.get("response_duration_seconds", 0) or 0)) for item in live_metrics)
-    avg_wpm = sum(max(0.0, float(item.get("wpm", 0) or 0)) for item in live_metrics) / len(live_metrics)
-    filler_rate = (total_fillers / total_words * 100) if total_words else 0.0
-    pause_ratio = (total_pause / total_response * 100) if total_response else 0.0
+    total_speaking = sum(max(0.0, float(item.get("speaking_duration_seconds", 0) or 0)) for item in live_metrics)
+    aggregate_wpm = total_words / total_speaking * 60 if total_speaking > 0 else 0.0
+    filler_rate = total_fillers / total_words * 100 if total_words else 0.0
+    pause_ratio = total_pause / total_response * 100 if total_response else 0.0
+    speaking_ratio = total_speaking / total_response * 100 if total_response else 0.0
+    avg_score = sum(item["delivery_score"] for item in analyses) / len(analyses)
 
     focus_areas = []
-    if avg_wpm < 110 and avg_wpm > 0:
+    if 0 < aggregate_wpm < 110:
         focus_areas.append("speaking pace")
-    elif avg_wpm > 160:
+    elif aggregate_wpm > 160:
         focus_areas.append("speaking pace control")
     if filler_rate > 5:
         focus_areas.append("filler-word reduction")
+    elif filler_rate > 2:
+        focus_areas.append("filler-word awareness")
     if pause_ratio > 25:
         focus_areas.append("pause management")
+    elif pause_ratio > 10:
+        focus_areas.append("pause efficiency")
+    if total_response > 0 and speaking_ratio < 60:
+        focus_areas.append("response continuity")
+
+    observations = []
+    if aggregate_wpm > 0:
+        if aggregate_wpm < 110:
+            observations.append("The recorded responses were delivered at a measured pace below the configured interview range.")
+        elif aggregate_wpm <= 160:
+            observations.append("The aggregate speaking rate stayed within the configured interview range.")
+        elif aggregate_wpm <= 190:
+            observations.append("The aggregate speaking rate was above the configured interview range.")
+        else:
+            observations.append("The aggregate speaking rate was substantially above the configured interview range.")
+    if filler_rate > 5:
+        observations.append("Filler usage formed a relatively large share of the captured spoken words.")
+    elif filler_rate > 2:
+        observations.append("Some filler-word usage was detected across the captured responses.")
+    if pause_ratio > 25:
+        observations.append("Pauses occupied a relatively large portion of recorded response time.")
+    elif pause_ratio > 10:
+        observations.append("Noticeable pause time was present across the recorded responses.")
+    if not observations:
+        observations.append("No notable delivery issue crossed the configured coaching thresholds.")
 
     return {
         "available": True,
         "response_count": len(live_metrics),
         "delivery_score": round(avg_score, 1),
-        "average_wpm": round(avg_wpm, 1),
+        "average_wpm": round(aggregate_wpm, 1),
         "total_words": total_words,
         "total_filler_words": total_fillers,
         "filler_rate_percent": round(filler_rate, 2),
         "total_pause_seconds": round(total_pause, 2),
         "pause_ratio_percent": round(pause_ratio, 2),
-        "focus_areas": focus_areas,
+        "total_response_seconds": round(total_response, 2),
+        "total_speaking_seconds": round(total_speaking, 2),
+        "speaking_ratio_percent": round(speaking_ratio, 2),
+        "focus_areas": focus_areas[:4],
+        "observations": observations[:4],
         "method": "Transparent browser speech-metric heuristics; not part of the official interview score.",
     }
-
 
 def build_interview_intelligence(
     overall_score: float,
@@ -999,7 +1317,7 @@ def build_interview_intelligence(
     technical_score = float(technical.get("score", 0) or 0)
     communication_score = float(communication.get("score", 0) or 0)
 
-    # Readiness is a separate coaching metric, never the official score.
+                                                                        
     readiness_components = [overall_score]
     if technical_score > 0:
         readiness_components.append(technical_score * 10)
@@ -1051,9 +1369,7 @@ def build_interview_intelligence(
         for area in delivery_summary.get("focus_areas", []) or []:
             if area not in focus_areas:
                 focus_areas.append(area)
-
-    # Reuse the AI-generated final feedback when it already provides explicit
-    # strengths/improvements, while keeping the response compact and safe.
+                                                                 
     ai_strengths = final_feedback.get("strengths", [])
     ai_improvements = final_feedback.get("improvements", [])
     if isinstance(ai_strengths, list):
@@ -1165,10 +1481,7 @@ def get_interview_result(
 
     answered_questions = len(answer_rows)
     total_questions = interview.max_questions
-
-    # ---------------------------------------------------------
-    # Official score: ALWAYS calculated from stored answer scores.
-    # ---------------------------------------------------------
+                                                      
     total_score = sum(
         float(answer.score or 0)
         for answer, question in answer_rows
@@ -1193,10 +1506,7 @@ def get_interview_result(
         performance_label = "Developing Performance"
     else:
         performance_label = "Needs Practice"
-
-    # ---------------------------------------------------------
-    # Parse structured final AI feedback safely.
-    # ---------------------------------------------------------
+                                                      
     final_feedback = interview.final_feedback
 
     if isinstance(final_feedback, str):
@@ -1217,20 +1527,13 @@ def get_interview_result(
 
     if not isinstance(final_feedback, dict):
         final_feedback = {}
-
-    # Never allow an old/stale AI score to override the official score.
+                                                                    
     final_feedback["overall_score"] = overall_score
     final_feedback["headline"] = performance_label
-
-    # ---------------------------------------------------------
-    # Load persisted response-mode / speech analytics.
-    # ---------------------------------------------------------
+                                                        
     answer_ids = [answer.id for answer, question in answer_rows]
     speech_metrics_map = get_speech_metrics_map(db, answer_ids)
-
-    # ---------------------------------------------------------
-    # Complete question-by-question report + delivery analytics.
-    # ---------------------------------------------------------
+                                                       
     report_answers = []
     live_metrics_for_summary = []
 
@@ -1270,6 +1573,10 @@ def get_interview_result(
 
     delivery_summary = build_delivery_summary(live_metrics_for_summary)
 
+    face_observations = None
+    if any(item.get("response_mode") == "live" for item in report_answers):
+        face_observations = get_face_observations(db, interview_id)
+
     intelligence = build_interview_intelligence(
         overall_score=overall_score,
         answers=report_answers,
@@ -1297,5 +1604,8 @@ def get_interview_result(
         "final_feedback": final_feedback,
         "delivery_summary": delivery_summary,
         "interview_intelligence": intelligence,
+        "face_observations": face_observations,
+        "report_version": "2.4",
+        "report_mode": "live" if any(item.get("response_mode") == "live" for item in report_answers) else "practice",
         "answers": report_answers,
     }

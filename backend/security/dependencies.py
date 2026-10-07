@@ -2,7 +2,6 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
-
 from database import get_db
 from models.user import User
 from security.jwt import SECRET_KEY, ALGORITHM
@@ -24,7 +23,6 @@ def get_current_user(
             algorithms=[ALGORITHM],
         )
 
-        # Only ACCESS tokens can access protected routes
         token_type = payload.get("type")
 
         if token_type != "access":
