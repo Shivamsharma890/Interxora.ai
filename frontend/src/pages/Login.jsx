@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import AuthLayout from "../components/AuthLayout";
 import { loginUser } from "../services/api";
+import interxoraLogo from "../assets/interxora-logo.png";
 
 function Login() {
   const navigate = useNavigate();
@@ -26,9 +27,7 @@ function Login() {
 
       navigate("/dashboard", { replace: true });
     } catch (err) {
-      setError(
-        err?.message || "Invalid email or password. Please try again."
-      );
+      setError(err?.message || "Invalid email or password. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -52,11 +51,12 @@ function Login() {
           <div className="relative px-7 py-7 sm:px-9 sm:py-8">
             <div className="mb-7 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 via-blue-500 to-violet-600 shadow-lg shadow-blue-600/20">
-                  <div className="absolute inset-[1px] rounded-[11px] bg-gradient-to-br from-cyan-400/20 to-transparent" />
-                  <span className="relative text-lg font-black tracking-tight text-white">
-                    I
-                  </span>
+                <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-[#030712] shadow-lg shadow-blue-500/20 transition duration-300 group-hover:scale-105 sm:h-10 sm:w-10">
+                  <img
+                    src={interxoraLogo}
+                    alt="Interxora.ai"
+                    className="h-full w-full object-contain"
+                  />
                 </div>
 
                 <div>
@@ -88,8 +88,8 @@ function Login() {
                 Sign in to your account
               </h1>
               <p className="mt-2.5 max-w-md text-sm leading-6 text-slate-400">
-                Continue your interview practice, review your performance,
-                and get closer to your next opportunity.
+                Continue your interview practice, review your performance, and
+                get closer to your next opportunity.
               </p>
             </div>
 
@@ -197,7 +197,9 @@ function Login() {
                     type="button"
                     onClick={() => setShowPassword((prev) => !prev)}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1.5 text-[11px] font-semibold text-slate-500 transition-all hover:bg-white/[0.05] hover:text-cyan-400"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
                   >
                     {showPassword ? "Hide" : "Show"}
                   </button>
